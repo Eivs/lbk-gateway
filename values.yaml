@@ -145,10 +145,10 @@ envoyGateway:
         image: docker.io/envoyproxy/ratelimit:master
         pullPolicy: IfNotPresent
         pullSecrets: []
-      envoyProxy:
-        image: dockerhub.kubekey.local/envoyproxy/envoy:distroless-dev
-        pullPolicy: IfNotPresent
-        pullSecrets: []
+      # envoyProxy:
+      #   image: docker.io/envoyproxy/envoy:distroless-dev
+      #   pullPolicy: IfNotPresent
+      #   pullSecrets: []
   # ==========================================
   # 部署配置
   # ==========================================
