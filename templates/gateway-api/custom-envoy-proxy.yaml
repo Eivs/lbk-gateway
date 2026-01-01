@@ -1,0 +1,32 @@
+{{- if .Values.envoyGateway.global.images.envoyProxy.image }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: custom-envoy-proxy
+  namespace: {{ include "lbk-gateway.namespace" . }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        container:
+          image: {{ .Values.envoyGateway.global.images.envoyProxy.image }}
+        {{- if .Values.envoyGateway.global.images.envoyProxy.pullSecrets }}
+        pod:
+          imagePullSecrets:
+            {{- range .Values.envoyGateway.global.images.envoyProxy.pullSecrets }}
+            - name: {{ . }}
+            {{- end }}
+        {{- end }}
+        {{- if .Values.envoyGateway.global.images.envoyProxy.pullPolicy }}
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              template:
+                spec:
+                  containers:
+                    - name: envoy
+                      imagePullPolicy: {{ .Values.envoyGateway.global.images.envoyProxy.pullPolicy }}
+        {{- end }}
+{{- end }}

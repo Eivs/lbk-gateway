@@ -1,0 +1,25 @@
+apiVersion: v2
+name: lbk-gateway
+description: LoadBalancer Kit Gateway - A Helm chart to install Gateway API CRDs, MetalLB, and Envoy Gateway for Kubernetes ingress with offline support
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - gateway-api
+  - metallb
+  - envoy-gateway
+  - envoyproxy
+  - loadbalancer
+maintainers:
+  - name: qingcloud
+
+dependencies:
+  - name: metallb
+    version: 0.15.3
+    repository: "file://./charts/metallb"
+    condition: metallb.enabled
+  - name: gateway-helm
+    version: 0.0.0-latest
+    repository: "file://./charts/gateway-helm"
+    condition: envoyGateway.enabled
+    alias: envoyGateway
