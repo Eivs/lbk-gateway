@@ -189,9 +189,6 @@ envoyGateway:
       logging:
         level:
           default: info
-    # Envoy Proxy 镜像配置（数据平面）
-    envoy:
-      image: docker.io/envoyproxy/envoy:distroless-dev
 
   # ==========================================
   # 自动扩缩配置（可选）
