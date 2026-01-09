@@ -29,14 +29,32 @@ LoadBalancer Kit Gateway - 一个用于在 Kubernetes 集群上部署 MetalLB �
 
 ## 安装
 
-### 1. 准备 Chart 依赖
+### 1. MetalLB L2 模式需要的默认 ARP 配置 (宿主机) 上配置
 
 ```bash
-# 克隆或下载此 chart
-cd lbk-gateway
+cat <<EOF | sudo tee /etc/sysctl.d/99-metallb-default.conf
+# MetalLB L2 模式需要的默认 ARP 配置
+# 影响所有新创建的接口
+net.ipv4.conf.default.arp_ignore = 0
+net.ipv4.conf.default.arp_announce = 0
+net.ipv4.conf.default.proxy_arp = 1
 
-# 更新依赖（下载本地 charts）
-helm dependency update
+# 同时显式设置 eth0 接口
+net.ipv4.conf.eth0.arp_ignore = 0
+net.ipv4.conf.eth0.arp_announce = 0
+net.ipv4.conf.eth0.proxy_arp = 1
+
+# 设置 all 配置（影响所有接口）
+net.ipv4.conf.all.arp_ignore = 0
+net.ipv4.conf.all.arp_announce = 0
+net.ipv4.conf.all.proxy_arp = 1
+
+# 其他必要配置
+net.ipv4.ip_forward = 1
+EOF
+
+# 应用配置
+sudo sysctl -p /etc/sysctl.d/99-metallb-default.conf
 ```
 
 ### 2. 配置 IP 地址池
@@ -54,22 +72,32 @@ metallb:
 
 ⚠️ **重要**: 确保 IP 地址在你的网络环境中未被使用，且与你的节点在同一网段。
 
+```yaml
+  l2Advertisements:
+    - name: default-advertisement
+      ipAddressPools:
+      - default-pool  # 对应 IP 池名称
+      interfaces:
+      - eth0   # IP 池使用的网口
+```
+⚠️ **重要**: 确保 IP 池使用的网口。
+
 ### 3. 安装 Chart
 
 ```bash
 # 安装到自定义命名空间
-helm upgrade --install lbk-gateway . -n lbk-system --create-namespace -f values.yaml
+helm upgrade --install metal-gateway . -n metal-gateway --create-namespace -f values.yaml
 ```
 
 ### 4. 验证安装
 
 ```bash
 # 检查 pods 状态
-kubectl get pods -n lbk-system
+kubectl get pods -n metal-system
 
 # 检查 MetalLB 组件
-kubectl get IPAddressPool -n metallb-system
-kubectl get L2Advertisement -n metallb-system
+kubectl get IPAddressPool -n metal-gateway
+kubectl get L2Advertisement -n metal-gateway
 
 # 检查 GatewayClass
 kubectl get gatewayclass
@@ -82,7 +110,7 @@ kubectl get gatewayclass
 安装时启用 whoami 示例应用，快速验证 MetalLB 和 Gateway API：
 
 ```bash
-helm upgrade --install lbk-gateway . -n lbk-system --set whoami.enabled=true
+helm upgrade --install metal-gateway . -n metal-gateway --set whoami.enabled=true
 ```
 
 等待几分钟让所有 Pod 启动，然后验证：
@@ -91,7 +119,7 @@ helm upgrade --install lbk-gateway . -n lbk-system --set whoami.enabled=true
 
 ```bash
 # 1. 获取 whoami 的外部 IP
-export WHOAMI_IP=$(kubectl get svc whoami -n lbk-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export WHOAMI_IP=$(kubectl get svc whoami -n metal-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 # 2. 访问应用（多次调用可以看到不同 Pod 响应）
 curl http://${WHOAMI_IP}/
@@ -107,7 +135,7 @@ echo "访问: http://${WHOAMI_IP}/"
 
 ```bash
 # 1. 获取 Envoy Gateway Service 外部 IP
-export GATEWAY_IP=$(kubectl get svc -n metallb-system envoy-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export GATEWAY_IP=$(kubectl get svc -n metal-gateway envoy-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 # 2. 通过 Gateway API 访问（使用 Host 头）
 curl -H "Host: whoami.local" http://${GATEWAY_IP}/
@@ -120,17 +148,17 @@ echo "${GATEWAY_IP} whoami.local" | sudo tee -a /etc/hosts
 #### 查看所有资源
 
 ```bash
-kubectl get all,gateway,httproute -n metallb-system | grep whoami
+kubectl get all,gateway,httproute -n metal-gateway | grep whoami
 ```
 
 #### 清理示例应用
 
 ```bash
 # 方式 1: 通过 helm 禁用
-helm upgrade lbk-gateway . --set whoami.enabled=false
+helm upgrade metal-gateway . --set whoami.enabled=false
 
 # 方式 2: 手动删除
-kubectl delete deployment,service,gateway,httproute -l app=whoami -n metallb-system
+kubectl delete deployment,service,gateway,httproute -l app=whoami -n metal-gateway
 ```
 
 ### 方式 2: 手动创建 LoadBalancer 服务
@@ -297,7 +325,7 @@ Envoy Gateway 会自动暴露 Prometheus metrics 端口 19001。
 
 ```bash
 # Port forward 到本地
-kubectl port-forward -n metallb-system deployment/envoy-gateway 19001:19001
+kubectl port-forward -n metal-gateway deployment/envoy-gateway 19001:19001
 
 # 访问 metrics
 curl http://localhost:19001/metrics
@@ -324,7 +352,7 @@ envoyGateway:
 kubectl get IPAddressPool -o yaml
 
 # 检查 Speaker 日志
-kubectl logs -n metallb-system -l app.kubernetes.io/component=speaker
+kubectl logs -n metal-gateway -l app.kubernetes.io/component=speaker
 
 # 检查是否有 IP 冲突
 kubectl describe ipaddresspool default-pool
@@ -334,7 +362,7 @@ kubectl describe ipaddresspool default-pool
 
 ```bash
 # 检查 MetalLB Controller
-kubectl logs -n metallb-system deployment/lbk-gateway-metallb-controller
+kubectl logs -n metal-gateway deployment/metal-gateway-metallb-controller
 
 # 检查 IPAddressPool 配置
 kubectl get IPAddressPool
@@ -354,30 +382,30 @@ kubectl get gateway
 kubectl describe gateway <gateway-name>
 
 # 检查 Envoy Gateway 日志
-kubectl logs -n metallb-system deployment/envoy-gateway
+kubectl logs -n metal-gateway deployment/envoy-gateway
 
 # 检查 Envoy Proxy 状态
-kubectl get pods -n metallb-system -l gateway.envoyproxy.io/owning-gateway-namespace=<namespace>
+kubectl get pods -n metal-gateway -l gateway.envoyproxy.io/owning-gateway-namespace=<namespace>
 ```
 
 ## 升级
 
 ```bash
 # 升级 chart
-helm upgrade lbk-gateway . -f values.yaml
+helm upgrade metal-gateway . -f values.yaml
 
 # 或指定新的 values 文件
-helm upgrade lbk-gateway . -f values-new.yaml --reuse-values
+helm upgrade metal-gateway . -f values-new.yaml --reuse-values
 ```
 
 ## 卸载
 
 ```bash
 # 卸载 chart
-helm uninstall lbk-gateway
+helm uninstall metal-gateway
 
 # 删除命名空间（可选）
-kubectl delete namespace metallb-system
+kubectl delete namespace metal-gateway
 
 # 删除 Gateway API CRDs（如果需要）
 kubectl delete crd -l gateway.networking.k8s.io/bundle-version=v1.4.1
@@ -421,6 +449,23 @@ kubectl delete crd -l gateway.networking.k8s.io/bundle-version=v1.4.1
 ### Q: 可以更改已分配的 IP 地址吗？
 
 **A**: 可以，但需要重启服务：
+
+指定 IP：
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  annotations:
+    metallb.io/loadBalancerIPs: 192.168.1.100  # 指定 svc 的 VIP
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: nginx
+  type: ClusterIP
+```
 
 ```bash
 kubectl delete svc <service-name>
@@ -469,20 +514,17 @@ tls:
 ## 项目结构
 
 ```
-lbk-gateway/
+metal-gateway/
 ├── Chart.yaml              # Helm Chart 元数据
 ├── values.yaml             # 默认配置值
 ├── charts/                 # 依赖的 charts（离线安装）
 │   ├── metallb/
 │   └── gateway-helm/       # Envoy Gateway chart
-├── crds/                   # Gateway API CRDs
-│   └── gateway-api-v1.4.1.yaml
 ├── templates/              # Helm 模板
 │   ├── NOTES.txt           # 安装后提示信息
 │   ├── _helpers.tpl        # 模板助手
 │   ├── namespaces.yaml     # 命名空间创建
 │   ├── gateway-api/        # Gateway API 相关
-│   │   └── gatewayclass.yaml
 │   ├── metallb/            # MetalLB 资源配置
 │   └── whoami/             # 示例应用
 └── README.md               # 本文档

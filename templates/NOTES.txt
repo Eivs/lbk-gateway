@@ -75,21 +75,21 @@ Envoy Gateway 会自动暴露 Prometheus metrics 端口 19001。
 
 MetalLB Speaker 正在运行。检查状态:
 
-  kubectl get pods -n {{ include "lbk-gateway.namespace" . }} | grep speaker
-  kubectl logs -n {{ include "lbk-gateway.namespace" . }} deployment/{{ .Release.Name }}-metallb-controller
+  kubectl get pods -n {{ include "metal-gateway.namespace" . }} | grep speaker
+  kubectl logs -n {{ include "metal-gateway.namespace" . }} deployment/metallb-controller
 {{- end }}
 
 {{- if .Values.envoyGateway.enabled }}
 🚀 快速开始:
 
 1. 创建一个测试应用:
-   kubectl create deployment test --image=nginx -n {{ include "lbk-gateway.namespace" . }}
+   kubectl create deployment test --image=nginx -n {{ include "metal-gateway.namespace" . }}
 
 2. 暴露为 LoadBalancer:
-   kubectl expose deployment test --port=80 --type=LoadBalancer -n {{ include "lbk-gateway.namespace" . }}
+   kubectl expose deployment test --port=80 --type=LoadBalancer -n {{ include "metal-gateway.namespace" . }}
 
 3. 获取外部 IP:
-   kubectl get svc test -n {{ include "lbk-gateway.namespace" . }}
+   kubectl get svc test -n {{ include "metal-gateway.namespace" . }}
 {{- end }}
 
 {{- if .Values.whoami.enabled }}
@@ -98,7 +98,7 @@ MetalLB Speaker 正在运行。检查状态:
 🎯 验证 MetalLB (LoadBalancer):
 
 1. 获取 whoami 的外部 IP:
-   export WHOAMI_IP=$(kubectl get svc whoami -n {{ include "lbk-gateway.namespace" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   export WHOAMI_IP=$(kubectl get svc whoami -n {{ include "metal-gateway.namespace" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 2. 访问应用 (多次调用可以看到不同 Pod 响应):
    curl http://${WHOAMI_IP}/
@@ -108,7 +108,7 @@ MetalLB Speaker 正在运行。检查状态:
 🌐 验证 Gateway API:
 
 1. 获取 Envoy Gateway Service 外部 IP:
-   export GATEWAY_IP=$(kubectl get svc -n {{ include "lbk-gateway.namespace" . }} envoy-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   export GATEWAY_IP=$(kubectl get svc -n {{ include "metal-gateway.namespace" . }} envoy-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
 2. 配置本地 hosts 文件 (可选):
    echo "${GATEWAY_IP} {{ .Values.whoami.gateway.host }}" | sudo tee -a /etc/hosts
@@ -120,12 +120,12 @@ MetalLB Speaker 正在运行。检查状态:
 
 📊 查看示例应用状态:
 
-  kubectl get pods,svc,gateway,httproute -n {{ include "lbk-gateway.namespace" . }} | grep whoami
+  kubectl get pods,svc,gateway,httproute -n {{ include "metal-gateway.namespace" . }} | grep whoami
 
 🧹 清理示例应用:
 
   helm upgrade {{ .Release.Name }} . --set whoami.enabled=false
 
   或手动删除:
-  kubectl delete deployment,service,gateway,httproute -l app=whoami -n {{ include "lbk-gateway.namespace" . }}
+  kubectl delete deployment,service,gateway,httproute -l app=whoami -n {{ include "metal-gateway.namespace" . }}
 {{- end }}

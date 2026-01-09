@@ -1,9 +1,9 @@
 {{- if .Values.metallb.enabled }}
-{{- if eq .Values.metallb.mode "layer2" }}
-{{- range .Values.metallb.l2Advertisements }}
+{{- if eq .Values.metallb.mode "bgp" }}
+{{- range .Values.metallb.bgpAdvertisements }}
 ---
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
+apiVersion: metallb.io/v1beta2
+kind: BGPAdvertisement
 metadata:
   name: {{ .name }}
   namespace: {{ include "metal-gateway.namespace" $ }}
@@ -16,12 +16,18 @@ spec:
   ipAddressPools:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with .interfaces }}
-  interfaces:
-    {{- toYaml . | nindent 4 }}
+  {{- with .aggregationLength }}
+  aggregationLength: {{ . }}
+  {{- end }}
+  {{- with .localPref }}
+  localPref: {{ . }}
   {{- end }}
   {{- with .nodeSelectors }}
   nodeSelectors:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .communities }}
+  communities:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}

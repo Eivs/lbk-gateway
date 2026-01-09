@@ -3,10 +3,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: whoami
-  namespace: {{ include "lbk-gateway.namespace" . }}
+  namespace: {{ include "metal-gateway.namespace" . }}
   labels:
     app: whoami
-    app.kubernetes.io/part-of: lbk-gateway
+    app.kubernetes.io/part-of: metal-gateway
 spec:
   replicas: {{ .Values.whoami.deployment.replicas }}
   selector:

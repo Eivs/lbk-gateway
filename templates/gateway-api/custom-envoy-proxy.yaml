@@ -3,7 +3,7 @@ apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyProxy
 metadata:
   name: custom-envoy-proxy
-  namespace: {{ include "lbk-gateway.namespace" . }}
+  namespace: {{ include "metal-gateway.namespace" . }}
 spec:
   provider:
     type: Kubernetes
@@ -13,6 +13,7 @@ spec:
           image: {{ .Values.envoyGateway.global.images.envoyProxy.image }}
         {{- if .Values.envoyGateway.global.images.envoyProxy.pullSecrets }}
         pod:
+          nodeSelector: {{ .Values.envoyGateway.deployment.pod.nodeSelector | toYaml | nindent 10 }}
           imagePullSecrets:
             {{- range .Values.envoyGateway.global.images.envoyProxy.pullSecrets }}
             - name: {{ . }}

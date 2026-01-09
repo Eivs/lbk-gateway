@@ -1,32 +1,19 @@
 # ==========================================
-# LBK Gateway - LoadBalancer Kit Gateway 离线安装配置
+# Metal Gateway - LoadBalancer Kit Gateway 离线安装配置
 # ==========================================
 # 本 chart 使用官方 MetalLB 和 Envoy Gateway charts 作为依赖
-#
-# 安装前请先运行: helm dependency update
 # ==========================================
 
-# 全局配置
-global:
-  imageRegistry: ""
-  imagePullSecrets: []
-
-
-# ==========================================
-# Gateway API CRDs 配置
-# ==========================================
-gatewayAPI:
-  enabled: true
-  installCRDs: false  # 启用 Gateway API CRD 安装
 
 # ==========================================
 # MetalLB 配置
 # ==========================================
 metallb:
   enabled: true
-
-  # 覆盖命名空间，让 MetalLB 安装到专门的命名空间
-  namespaceOverride: metallb-system
+  nameOverride: "metallb"
+  fullnameOverride: "metallb"
+  # 支持: layer2 (L2模式) 或 bgp (BGP模式)
+  mode: layer2
 
   crds:
     enabled: true  # MetalLB CRD 需要由 Helm 安装
@@ -42,6 +29,8 @@ metallb:
       repository: quay.io/metallb/controller
       tag: v0.15.3
     tolerations: []
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
     priorityClassName: system-cluster-critical
     resources:
       requests:
@@ -54,6 +43,8 @@ metallb:
   # Speaker 镜像
   speaker:
     enabled: true
+    tolerations: []
+    nodeSelector: {}
     image:
       repository: quay.io/metallb/speaker
       tag: v0.15.3
@@ -70,6 +61,8 @@ metallb:
     # FRR 镜像（BGP 模式需要）
     frr:
       enabled: false
+      tolerations: []
+      nodeSelector: {}
       image:
         repository: quay.io/frrouting/frr
         tag: 10.4.1
@@ -83,6 +76,8 @@ metallb:
           cpu: 500m
           memory: 500Mi
 
+
+
   # ==========================================
   # MetalLB IP 地址池配置
   # ==========================================
@@ -94,20 +89,25 @@ metallb:
         - 172.20.88.100-172.20.88.150
       autoAssign: true
 
-  # L2 广播配置
+  # ==========================================
+  # L2 广播配置（仅当 mode: layer2 时生效）
+  # ==========================================
   l2Advertisements:
-    - name: default
-      ipAddressPoolSelectors:
-        - matchLabels:
-            metallb.io/address-pool: default-pool
+    - name: default-advertisement
+      ipAddressPools:
+      - default-pool  # 对应 IP 池名称
+      interfaces:
+      - eth0   # IP 池使用的网口
 
-  # BGP 配置（如果使用 BGP 模式）
-  bgp:
-    peers: []
-    # - my-asn: 64500
-    #   peer-asn: 64501
-    #   peer-address: 10.0.0.1
-    #   source-address: 10.0.0.2
+  # ==========================================
+  # BGP 广播配置（仅当 mode: bgp 时生效）
+  # ==========================================
+  # bgpAdvertisements:
+  #   - name: default-bgp-advertisement
+  #     ipAddressPools:
+  #     - default-pool  # 对应 IP 池名称
+      # aggregationLength: 32  # 可选：IP 聚合长度
+      # localPref: 100  # 可选：本地优先级
 
   # Prometheus 监控（可选）
   prometheus:
@@ -123,12 +123,8 @@ metallb:
 # ==========================================
 envoyGateway:
   enabled: true
-
-  # 覆盖命名空间，让 Envoy Gateway 安装到专门的命名空间
-  namespaceOverride: envoy-gateway-system
-
+  nameOverride: ""
   fullnameOverride: envoy-gateway
-
   # ==========================================
   # 镜像配置
   # ==========================================
@@ -146,7 +142,7 @@ envoyGateway:
         pullPolicy: IfNotPresent
         pullSecrets: []
       envoyProxy:
-        image: dockerhub.kubekey.local/envoyproxy/envoy:distroless-dev
+        image: docker.io/envoyproxy/envoy:distroless-dev
         pullPolicy: IfNotPresent
         pullSecrets: []
   # ==========================================
@@ -167,6 +163,17 @@ envoyGateway:
         limits:
           cpu: "500m"
           memory: "1024Mi"
+    pod:
+      tolerations: []
+      nodeSelector: {}
+
+  # ==========================================
+  # Certgen 配置（证书生成）
+  # ==========================================
+  certgen:
+    job:
+      args:
+      - --disable-topology-injector
 
   # ==========================================
   # Service 配置
@@ -184,6 +191,7 @@ envoyGateway:
     envoyGateway:
       gateway:
         controllerName: gateway.envoyproxy.io/gatewayclass-controller
+      name: lbk-envoy-gateway
       provider:
         type: Kubernetes
       logging:
@@ -201,16 +209,12 @@ envoyGateway:
     minReplicas: 1
     maxReplicas: 3
 
-  # ==========================================
-  # 监控配置（可选）
-  # ==========================================
-  #  Envoy Gateway 会自动暴露 metrics 端口 19001
 
 # ==========================================
 # Whoami 示例应用（用于验证）
 # ==========================================
 whoami:
-  enabled: true  # 设置为 true 启用示例应用
+  enabled: false  # 设置为 true 启用示例应用
 
   image:
     registry: docker.io

@@ -3,10 +3,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: whoami
-  namespace: {{ include "lbk-gateway.namespace" . }}
+  namespace: {{ include "metal-gateway.namespace" . }}
   labels:
     app: whoami
-    app.kubernetes.io/part-of: lbk-gateway
+    app.kubernetes.io/part-of: metal-gateway
+  annotations:
+    metallb.io/loadBalancerIPs: 172.20.88.200
 spec:
   type: {{ .Values.whoami.service.type }}
   ports:
